@@ -1,19 +1,51 @@
 # VPNGate Controller
 
-VPNGate Controller is a single-node control plane for two different network roles:
+Deploy a Hysteria 2 edge on no-TUN hosts in one command, or keep the older VPNGate/OpenVPN workflow on machines that still have TUN.
 
-- `openvpn` mode: refresh VPNGate nodes, score residential-looking exits, and manage a local OpenVPN session
-- `hy2-native` mode: install and manage a local Hysteria 2 server on hosts that do not have `/dev/net/tun`, such as many LXC VPS environments
+This project bundles three things that usually get glued together by hand:
 
-The project ships a FastAPI backend, a Vue dashboard, and a one-shot installer.
+- the official `Hysteria 2` server service
+- a small web dashboard for status, logs, and client URI output
+- a single installer that prepares the host, writes config, and starts services
 
-## What This Project Solves
+## Hero
 
-Use this project when you want one of these outcomes:
+Use it when you want a practical operator workflow instead of a pile of shell fragments:
 
-- run a Hysteria 2 server on an LXC or other no-TUN host without touching the host default route
-- keep a simple dashboard for service status, client URI output, and logs
-- keep the older VPNGate/OpenVPN workflow available for hosts that do have TUN support
+- run `Hysteria 2` on an LXC or other no-TUN VPS without touching the host default route
+- keep a visible control plane for service status, logs, and generated client links
+- preserve the older VPNGate/OpenVPN path for hosts that still support `/dev/net/tun`
+
+### Quick Start
+
+No-TUN or LXC host:
+
+```bash
+bash install.sh --mode hy2-native --port 8443
+```
+
+Real domain + ACME certificate:
+
+```bash
+bash install.sh --mode hy2-native --domain vpn.example.com --acme-email ops@example.com --port 443
+```
+
+### Why It Feels Better Than a Raw One-Liner
+
+- one installer instead of multiple disconnected scripts
+- official `hysteria-server.service`, but with project-managed config and dashboard visibility
+- generated `hysteria2://...` client URI at install time
+- compatibility defaults that match the familiar community `hy2.sh` flow:
+  - `SNI=bing.com`
+  - `masquerade=https://bing.com`
+  - `insecure=1`
+
+### What Gets Installed
+
+- `hysteria-server.service`
+- `vpngate-controller.service`
+- Hysteria config at `/etc/hysteria/config.yaml`
+- web dashboard on port `8000`
 
 ## Runtime Modes
 
