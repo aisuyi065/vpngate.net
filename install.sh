@@ -182,10 +182,18 @@ sync_project() {
   fi
 }
 
+ensure_runtime_permissions() {
+  chmod 755 "$PROJECT_DIR/install.sh" 2>/dev/null || true
+  chmod 755 "$PROJECT_DIR/scripts/start-controller.sh"
+  chmod 755 "$PROJECT_DIR/scripts/install-debian.sh" 2>/dev/null || true
+  chmod 755 "$PROJECT_DIR/scripts/install-wsl.sh" 2>/dev/null || true
+}
+
 install_app() {
   cd "$PROJECT_DIR"
   [[ -f .env ]] || cp .env.example .env
   python3 -m venv .venv
+  chmod 755 .venv/bin/python 2>/dev/null || true
   .venv/bin/pip install --upgrade pip
   .venv/bin/pip install -e backend
   npm --prefix frontend install
@@ -350,6 +358,7 @@ main() {
   validate_inputs
   install_packages
   sync_project
+  ensure_runtime_permissions
   install_app
   configure_env
   install_controller_service
