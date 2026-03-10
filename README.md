@@ -96,10 +96,41 @@ Use this when you want a cleaner production setup with a real certificate.
 ### Legacy VPNGate / OpenVPN install
 
 ```bash
-./scripts/install-debian.sh
+bash install.sh --mode openvpn --panel-pass 你的面板密码
 ```
 
 Use this only on hosts with `/dev/net/tun`.
+
+### How to use VPNGate / OpenVPN mode
+
+Use `openvpn` mode when you want the original VPNGate behavior:
+
+- refresh public VPNGate nodes
+- score residential-looking exits
+- manually connect or auto-select an OpenVPN exit
+
+Before you install it, verify that the host really supports TUN:
+
+```bash
+ls -l /dev/net/tun
+```
+
+If `/dev/net/tun` is missing, stop there. This host is not suitable for `openvpn` mode.
+
+Recommended command:
+
+```bash
+bash install.sh --mode openvpn --panel-pass 你的面板密码
+```
+
+Do not use `./scripts/install-debian.sh` when you need to force `openvpn`. That wrapper is the generic entrypoint and may auto-select a different mode based on the host.
+
+After install, the expected dashboard shape is different from `hy2-native` mode:
+
+- VPNGate server inventory
+- refresh button
+- manual connect button
+- auto-connect country controls
 
 ## Post-Install Checks
 
@@ -197,3 +228,4 @@ Most important Hysteria 2 variables:
 If you want a Chinese deployment handoff that you can send directly to someone else, use:
 
 - `docs/HY2-NATIVE-DEPLOYMENT.zh-CN.md`
+- `docs/VPNGATE-OPENVPN-DEPLOYMENT.zh-CN.md`
