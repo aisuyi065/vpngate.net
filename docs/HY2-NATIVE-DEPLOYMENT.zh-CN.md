@@ -22,6 +22,7 @@
 - 直接安装官方 `Hysteria 2`
 - 自动生成项目面板
 - 自动输出可用的 `hy2` 客户端链接
+- 面板密码后续可在面板内直接修改，不用重新跑安装脚本
 - 默认兼容常见社区脚本习惯：
   - `SNI=bing.com`
   - `masquerade=https://bing.com`
@@ -32,8 +33,10 @@
 适合先跑通、先能连。
 
 ```bash
-bash install.sh --mode hy2-native --port 8443
+bash install.sh --mode hy2-native --port 8443 --dashboard-password 你的面板密码
 ```
+
+如果你不传 `--dashboard-password`，脚本也会自动生成一个面板密码，并在安装结束时打印出来。
 
 执行完成后会输出一行：
 
@@ -43,18 +46,25 @@ Hysteria URI: hysteria2://...
 
 这就是客户端可直接导入的链接。
 
+同时还会输出：
+
+```text
+Dashboard: http://外网IP:8000
+Dashboard password: 你设置的密码
+```
+
 ## 方案二：有域名，走 ACME 正式证书
 
 适合长期稳定使用。
 
 ```bash
-bash install.sh --mode hy2-native --domain 你的域名 --acme-email 你的邮箱 --port 443
+bash install.sh --mode hy2-native --domain 你的域名 --acme-email 你的邮箱 --port 443 --dashboard-password 你的面板密码
 ```
 
 示例：
 
 ```bash
-bash install.sh --mode hy2-native --domain vpn.example.com --acme-email ops@example.com --port 443
+bash install.sh --mode hy2-native --domain vpn.example.com --acme-email ops@example.com --port 443 --dashboard-password panel-123456
 ```
 
 ## 必须放行的端口
@@ -91,8 +101,10 @@ journalctl --no-pager -e -u hysteria-server.service
 浏览器访问：
 
 ```text
-http://你的服务器IP:8000
+http://你的外网 IP:8000
 ```
+
+打开后只需要输入密码，不需要用户名。
 
 ## 默认输出链接长什么样
 
@@ -145,9 +157,10 @@ hysteria2://密码@你的服务器IP:8443/?sni=bing.com&insecure=1#VPNGate-Hyste
 ```text
 在服务器项目目录执行：
 
-bash install.sh --mode hy2-native --port 8443
+bash install.sh --mode hy2-native --port 8443 --dashboard-password 你的面板密码
 
 安装完成后会打印 Hysteria URI: hysteria2://...
+以及 Dashboard: http://外网IP:8000
 
 记得放行：
 - 8000/tcp

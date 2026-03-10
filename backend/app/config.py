@@ -26,6 +26,8 @@ class Settings(BaseModel):
     bind_port: int = int(os.getenv("VPNGATE_BIND_PORT", "8000"))
     data_dir: Path = Path(os.getenv("VPNGATE_DATA_DIR", "data"))
     runtime_mode: str = os.getenv("VPNGATE_RUNTIME_MODE", "openvpn")
+    dashboard_password: str | None = os.getenv("VPNGATE_DASHBOARD_PASSWORD")
+    dashboard_session_secret: str | None = os.getenv("VPNGATE_DASHBOARD_SESSION_SECRET")
     connector_mode: str = os.getenv("VPNGATE_CONNECTOR_MODE", "openvpn")
     ip_intel_provider: str = os.getenv("VPNGATE_IP_INTEL_PROVIDER", "ipapi.is")
     refresh_interval_seconds: int = int(os.getenv("VPNGATE_REFRESH_INTERVAL_SECONDS", "3600"))

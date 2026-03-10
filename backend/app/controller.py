@@ -38,6 +38,7 @@ class VpnGateController:
             self.storage.get_state("allowed_countries", self.settings.auto_mode_default_countries)
         )
         self.auto_mode_enabled = bool(self.storage.get_state("auto_mode_enabled", self.settings.auto_mode_default_enabled))
+        self._load_dashboard_auth_state()
         self._background_task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
         self._refresh_lock = asyncio.Lock()
@@ -299,6 +300,14 @@ class VpnGateController:
             seen.add(code)
             result.append(code)
         return result or list(self.settings.auto_mode_default_countries)
+
+    def _load_dashboard_auth_state(self) -> None:
+        stored_password = self.storage.get_state("dashboard_password")
+        stored_session_secret = self.storage.get_state("dashboard_session_secret")
+        if stored_password:
+            self.settings.dashboard_password = stored_password
+        if stored_session_secret:
+            self.settings.dashboard_session_secret = stored_session_secret
 
     def _is_hysteria_mode(self) -> bool:
         return self.settings.runtime_mode == "hy2-native"

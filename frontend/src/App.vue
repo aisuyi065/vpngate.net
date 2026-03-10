@@ -2,19 +2,31 @@
 import { computed, onMounted, ref, shallowRef, watch } from "vue";
 
 import {
+  changeDashboardPassword,
   connectServer,
   disconnectServer,
+  getDashboardAuthStatus,
   getHysteriaClientConfig,
   getHysteriaLogs,
   getHysteriaStatus,
   getServers,
   getStatus,
+  loginDashboard,
+  logoutDashboard,
   refreshServers,
   restartHysteria,
   updateAutoMode,
 } from "./lib/api";
 import { supportedMethods } from "./lib/format";
-import type { ConnectionStatus, HysteriaClientConfig, HysteriaStatus, ServerItem } from "./types";
+import type {
+  ConnectionStatus,
+  DashboardAuthStatus,
+  HysteriaClientConfig,
+  HysteriaStatus,
+  ServerItem,
+} from "./types";
+import DashboardLoginCard from "./components/DashboardLoginCard.vue";
+import DashboardPasswordCard from "./components/DashboardPasswordCard.vue";
 import HysteriaPanel from "./components/HysteriaPanel.vue";
 import ServerTable from "./components/ServerTable.vue";
 import StatusPanel from "./components/StatusPanel.vue";
@@ -73,13 +85,24 @@ const servers = ref<ServerItem[]>(seedServers);
 const hysteriaStatus = ref<HysteriaStatus | null>(null);
 const hysteriaClientConfig = ref<HysteriaClientConfig | null>(null);
 const hysteriaLogs = ref<string[]>([]);
+const dashboardAuthStatus = ref<DashboardAuthStatus>({
+  enabled: false,
+  authenticated: true,
+});
 const busy = shallowRef(false);
 const busyServerId = shallowRef<string | null>(null);
 const hysteriaBusy = shallowRef(false);
+const loginBusy = shallowRef(false);
+const dashboardPasswordBusy = shallowRef(false);
+const showDashboardPasswordCard = shallowRef(false);
 const errorMessage = shallowRef("");
+const dashboardPasswordErrorMessage = shallowRef("");
 const allowedCountriesInput = shallowRef(seedStatus.allowed_countries.join(","));
 
 const isHy2Mode = computed(() => status.value.mode === "hy2-native");
+const isDashboardLocked = computed(
+  () => dashboardAuthStatus.value.enabled && !dashboardAuthStatus.value.authenticated,
+);
 
 const heroTitle = computed(() => {
   return isHy2Mode.value ? "Hysteria 2 Edge Dashboard" : "Residential Exit Dashboard";
@@ -136,6 +159,10 @@ async function loadStatus() {
   status.value = await getStatus();
 }
 
+async function loadDashboardAuthStatus() {
+  dashboardAuthStatus.value = await getDashboardAuthStatus();
+}
+
 async function loadServers() {
   const response = await getServers();
   servers.value = response.items.length > 0 ? response.items : seedServers;
@@ -156,6 +183,10 @@ async function loadAll() {
   try {
     errorMessage.value = "";
     busy.value = true;
+    await loadDashboardAuthStatus();
+    if (isDashboardLocked.value) {
+      return;
+    }
     await Promise.all([loadStatus(), loadServers(), loadHysteria()]);
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "Failed to load dashboard data.";
@@ -231,6 +262,44 @@ async function handleRestartHysteria() {
   }
 }
 
+async function handleDashboardLogin(password: string) {
+  try {
+    loginBusy.value = true;
+    errorMessage.value = "";
+    dashboardAuthStatus.value = await loginDashboard(password);
+    await loadAll();
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "面板密码验证失败。";
+  } finally {
+    loginBusy.value = false;
+  }
+}
+
+async function handleDashboardLogout() {
+  await logoutDashboard();
+  dashboardAuthStatus.value = await getDashboardAuthStatus();
+  showDashboardPasswordCard.value = false;
+}
+
+function handleToggleDashboardPasswordCard() {
+  showDashboardPasswordCard.value = !showDashboardPasswordCard.value;
+  dashboardPasswordErrorMessage.value = "";
+}
+
+async function handleChangeDashboardPassword(password: string) {
+  try {
+    dashboardPasswordBusy.value = true;
+    dashboardPasswordErrorMessage.value = "";
+    dashboardAuthStatus.value = await changeDashboardPassword(password);
+    showDashboardPasswordCard.value = false;
+  } catch (error) {
+    dashboardPasswordErrorMessage.value =
+      error instanceof Error ? error.message : "更新面板密码失败。";
+  } finally {
+    dashboardPasswordBusy.value = false;
+  }
+}
+
 onMounted(async () => {
   if (typeof fetch !== "function") {
     return;
@@ -248,31 +317,65 @@ onMounted(async () => {
       <p class="hero__summary">{{ summary }}</p>
     </section>
 
-    <StatusPanel :status="status" />
-
-    <HysteriaPanel
-      v-if="hysteriaStatus"
-      :busy="hysteriaBusy"
-      :status="hysteriaStatus"
-      :client-config="hysteriaClientConfig"
-      :logs="hysteriaLogs"
-      @restart="handleRestartHysteria"
+    <DashboardLoginCard
+      v-if="isDashboardLocked"
+      :busy="loginBusy"
+      :error-message="errorMessage"
+      @login="handleDashboardLogin"
     />
 
-    <ToolbarPanel
-      v-if="!isHy2Mode"
-      :busy="busy"
-      :auto-mode-enabled="status.auto_mode_enabled"
-      :allowed-countries-input="allowedCountriesInput"
-      @refresh="handleRefresh"
-      @disconnect="handleDisconnect"
-      @save="handleSaveAutoMode"
-      @toggle-auto-mode="handleToggleAutoMode"
-      @update-allowed-countries="handleAllowedCountriesInput"
-    />
+    <template v-else>
+      <StatusPanel :status="status" />
 
-    <p v-if="errorMessage" class="inline-message inline-message--error">{{ errorMessage }}</p>
+      <section class="toolbar-panel toolbar-panel--top card">
+        <div class="toolbar-panel__group">
+          <button
+            v-if="dashboardAuthStatus.enabled"
+            class="button"
+            @click="handleToggleDashboardPasswordCard"
+          >
+            {{ showDashboardPasswordCard ? "收起密码修改" : "修改面板密码" }}
+          </button>
+          <button class="button" @click="handleDashboardLogout">锁定面板</button>
+        </div>
+      </section>
 
-    <ServerTable v-if="!isHy2Mode" :servers="servers" :busy-server-id="busyServerId" @connect="handleConnect" />
+      <DashboardPasswordCard
+        v-if="showDashboardPasswordCard"
+        :busy="dashboardPasswordBusy"
+        :error-message="dashboardPasswordErrorMessage"
+        @change-password="handleChangeDashboardPassword"
+      />
+
+      <HysteriaPanel
+        v-if="hysteriaStatus"
+        :busy="hysteriaBusy"
+        :status="hysteriaStatus"
+        :client-config="hysteriaClientConfig"
+        :logs="hysteriaLogs"
+        @restart="handleRestartHysteria"
+      />
+
+      <ToolbarPanel
+        v-if="!isHy2Mode"
+        :busy="busy"
+        :auto-mode-enabled="status.auto_mode_enabled"
+        :allowed-countries-input="allowedCountriesInput"
+        @refresh="handleRefresh"
+        @disconnect="handleDisconnect"
+        @save="handleSaveAutoMode"
+        @toggle-auto-mode="handleToggleAutoMode"
+        @update-allowed-countries="handleAllowedCountriesInput"
+      />
+
+      <p v-if="errorMessage" class="inline-message inline-message--error">{{ errorMessage }}</p>
+
+      <ServerTable
+        v-if="!isHy2Mode"
+        :servers="servers"
+        :busy-server-id="busyServerId"
+        @connect="handleConnect"
+      />
+    </template>
   </main>
 </template>

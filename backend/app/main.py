@@ -1,14 +1,24 @@
 from __future__ import annotations
 
 from pathlib import Path
+from secrets import token_hex
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.config import Settings, settings
 from app.controller import VpnGateController
-from app.models import AutoModePayload, HysteriaConfigPayload, ServerFilters
+from app.models import AutoModePayload, DashboardAuthStatus, DashboardLoginPayload, HysteriaConfigPayload, ServerFilters
+from app.services.dashboard_auth import (
+    DASHBOARD_AUTH_COOKIE,
+    create_dashboard_session_token,
+    dashboard_auth_enabled,
+    verify_dashboard_password,
+    verify_dashboard_session_token,
+)
 
 
 class AppControllerAdapter:
@@ -73,8 +83,9 @@ class AppControllerAdapter:
         return await self.controller.list_hysteria_logs(limit)
 
 
-def create_app(controller: object | None = None) -> FastAPI:
-    adapter = controller if controller is not None else AppControllerAdapter(VpnGateController())
+def create_app(controller: object | None = None, app_settings: Settings | None = None) -> FastAPI:
+    resolved_settings = app_settings or settings
+    adapter = controller if controller is not None else AppControllerAdapter(VpnGateController(resolved_settings))
     app = FastAPI(title="VPNGate Controller", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
@@ -84,6 +95,31 @@ def create_app(controller: object | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     app.state.controller = adapter
+    app.state.settings = resolved_settings
+
+    def persist_dashboard_auth_state(password: str, session_secret: str) -> None:
+        root_controller = getattr(app.state.controller, "controller", app.state.controller)
+        storage = getattr(root_controller, "storage", None)
+        if storage is None:
+            return
+        storage.put_state("dashboard_password", password)
+        storage.put_state("dashboard_session_secret", session_secret)
+
+    @app.middleware("http")
+    async def dashboard_auth_middleware(request: Request, call_next):
+        current_settings = app.state.settings
+        path = request.url.path
+        if not dashboard_auth_enabled(current_settings):
+            return await call_next(request)
+        if path == "/health" or path.startswith("/assets"):
+            return await call_next(request)
+        if path in {"/api/auth/login", "/api/auth/status"}:
+            return await call_next(request)
+        if path.startswith("/api/"):
+            token = request.cookies.get(DASHBOARD_AUTH_COOKIE)
+            if not verify_dashboard_session_token(token, current_settings):
+                return JSONResponse({"detail": "Authentication required"}, status_code=401)
+        return await call_next(request)
 
     @app.on_event("startup")
     async def startup() -> None:
@@ -104,6 +140,62 @@ def create_app(controller: object | None = None) -> FastAPI:
     @app.get("/api/status")
     async def status():
         return await app.state.controller.get_status()
+
+    @app.get("/api/auth/status")
+    async def auth_status(request: Request):
+        current_settings = app.state.settings
+        authenticated = verify_dashboard_session_token(
+            request.cookies.get(DASHBOARD_AUTH_COOKIE),
+            current_settings,
+        )
+        return DashboardAuthStatus(
+            enabled=dashboard_auth_enabled(current_settings),
+            authenticated=authenticated,
+        )
+
+    @app.post("/api/auth/login")
+    async def auth_login(payload: DashboardLoginPayload, response: Response):
+        current_settings = app.state.settings
+        if not dashboard_auth_enabled(current_settings):
+            return DashboardAuthStatus(enabled=False, authenticated=True)
+        if not verify_dashboard_password(payload.password, current_settings):
+            raise HTTPException(status_code=401, detail="Invalid dashboard password")
+        response.set_cookie(
+            key=DASHBOARD_AUTH_COOKIE,
+            value=create_dashboard_session_token(current_settings),
+            httponly=True,
+            samesite="lax",
+            secure=False,
+            max_age=7 * 24 * 3600,
+        )
+        return DashboardAuthStatus(enabled=True, authenticated=True)
+
+    @app.post("/api/auth/logout")
+    async def auth_logout(response: Response):
+        response.delete_cookie(DASHBOARD_AUTH_COOKIE)
+        return DashboardAuthStatus(
+            enabled=dashboard_auth_enabled(app.state.settings),
+            authenticated=False,
+        )
+
+    @app.post("/api/auth/password")
+    async def auth_change_password(payload: DashboardLoginPayload, response: Response):
+        current_settings = app.state.settings
+        password = payload.password.strip()
+        if not password:
+            raise HTTPException(status_code=400, detail="Dashboard password cannot be empty")
+        current_settings.dashboard_password = password
+        current_settings.dashboard_session_secret = token_hex(32)
+        persist_dashboard_auth_state(password, current_settings.dashboard_session_secret)
+        response.set_cookie(
+            key=DASHBOARD_AUTH_COOKIE,
+            value=create_dashboard_session_token(current_settings),
+            httponly=True,
+            samesite="lax",
+            secure=False,
+            max_age=7 * 24 * 3600,
+        )
+        return DashboardAuthStatus(enabled=True, authenticated=True)
 
     @app.get("/api/servers")
     async def servers(

@@ -1,5 +1,6 @@
 import type {
   ConnectionStatus,
+  DashboardAuthStatus,
   HysteriaClientConfig,
   HysteriaLogResponse,
   HysteriaStatus,
@@ -11,6 +12,7 @@ async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Pro
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "same-origin",
     ...init,
   });
 
@@ -24,6 +26,30 @@ async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit): Pro
 
 export function getStatus(): Promise<ConnectionStatus> {
   return requestJson<ConnectionStatus>("/api/status");
+}
+
+export function getDashboardAuthStatus(): Promise<DashboardAuthStatus> {
+  return requestJson<DashboardAuthStatus>("/api/auth/status");
+}
+
+export function loginDashboard(password: string): Promise<DashboardAuthStatus> {
+  return requestJson<DashboardAuthStatus>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ password }),
+  });
+}
+
+export function logoutDashboard(): Promise<DashboardAuthStatus> {
+  return requestJson<DashboardAuthStatus>("/api/auth/logout", {
+    method: "POST",
+  });
+}
+
+export function changeDashboardPassword(password: string): Promise<DashboardAuthStatus> {
+  return requestJson<DashboardAuthStatus>("/api/auth/password", {
+    method: "POST",
+    body: JSON.stringify({ password }),
+  });
 }
 
 export function getServers(): Promise<ServerListResponse> {

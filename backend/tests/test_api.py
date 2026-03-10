@@ -1,7 +1,15 @@
 from fastapi.testclient import TestClient
 
+from app.config import Settings
 from app.main import create_app
-from app.models import ConnectionStatus, HysteriaClientConfig, HysteriaConfigPayload, HysteriaStatus, IpQualityRecord, ServerRecord
+from app.models import (
+    ConnectionStatus,
+    HysteriaClientConfig,
+    HysteriaConfigPayload,
+    HysteriaStatus,
+    IpQualityRecord,
+    ServerRecord,
+)
 
 
 class FakeController:
@@ -201,3 +209,93 @@ def test_hysteria_client_config_endpoint_returns_uri():
     assert payload["server"] == "gateway.example.com:8443"
     assert payload["tls"]["sni"] == "bing.com"
     assert payload["uri"].startswith("hysteria2://")
+
+
+def test_dashboard_api_requires_password_when_enabled():
+    app = create_app(
+        controller=FakeController(),
+        app_settings=Settings(
+            runtime_mode="hy2-native",
+            dashboard_password="panel-secret",
+            dashboard_session_secret="session-secret",
+        ),
+    )
+    client = TestClient(app)
+
+    response = client.get("/api/status")
+
+    assert response.status_code == 401
+
+
+def test_dashboard_login_sets_cookie_and_unlocks_api():
+    app = create_app(
+        controller=FakeController(),
+        app_settings=Settings(
+            runtime_mode="hy2-native",
+            dashboard_password="panel-secret",
+            dashboard_session_secret="session-secret",
+        ),
+    )
+    client = TestClient(app)
+
+    login_response = client.post("/api/auth/login", json={"password": "panel-secret"})
+
+    assert login_response.status_code == 200
+    assert "vpngate_dashboard_auth" in login_response.cookies
+
+    status_response = client.get("/api/status")
+
+    assert status_response.status_code == 200
+    assert status_response.json()["mode"] == "mock"
+
+
+def test_dashboard_auth_status_reports_locked_state():
+    app = create_app(
+        controller=FakeController(),
+        app_settings=Settings(
+            runtime_mode="hy2-native",
+            dashboard_password="panel-secret",
+            dashboard_session_secret="session-secret",
+        ),
+    )
+    client = TestClient(app)
+
+    response = client.get("/api/auth/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["enabled"] is True
+    assert payload["authenticated"] is False
+
+
+def test_dashboard_password_can_be_changed_without_reinstall():
+    app = create_app(
+        controller=FakeController(),
+        app_settings=Settings(
+            runtime_mode="hy2-native",
+            dashboard_password="panel-secret",
+            dashboard_session_secret="session-secret",
+        ),
+    )
+    client = TestClient(app)
+
+    login_response = client.post("/api/auth/login", json={"password": "panel-secret"})
+
+    assert login_response.status_code == 200
+
+    change_response = client.post(
+        "/api/auth/password",
+        json={"password": "new-panel-secret"},
+    )
+
+    assert change_response.status_code == 200
+    assert change_response.json()["authenticated"] is True
+
+    logout_response = client.post("/api/auth/logout")
+    assert logout_response.status_code == 200
+
+    old_login = client.post("/api/auth/login", json={"password": "panel-secret"})
+    assert old_login.status_code == 401
+
+    new_login = client.post("/api/auth/login", json={"password": "new-panel-secret"})
+    assert new_login.status_code == 200

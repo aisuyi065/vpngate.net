@@ -8,6 +8,7 @@ DOMAIN=""
 ACME_EMAIL=""
 PORT="8443"
 AUTH_PASSWORD=""
+DASHBOARD_PASSWORD=""
 MASQUERADE_URL="https://bing.com"
 ADVERTISE_HOST=""
 
@@ -22,6 +23,7 @@ Options:
   --acme-email EMAIL       Email used for ACME registration
   --port PORT              Hysteria UDP listen port (default: 8443)
   --auth-password VALUE    Explicit Hysteria password
+  --dashboard-password V   Password required to access http://SERVER_IP:8000
   --masquerade-url URL     Hysteria masquerade URL
   --advertise-host HOST    Host advertised in client URI
   --help                   Show this message
@@ -52,6 +54,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --auth-password)
       AUTH_PASSWORD="$2"
+      shift 2
+      ;;
+    --dashboard-password)
+      DASHBOARD_PASSWORD="$2"
       shift 2
       ;;
     --masquerade-url)
@@ -193,6 +199,11 @@ configure_env() {
   set_env_value .env VPNGATE_BIND_PORT 8000
   set_env_value .env VPNGATE_DATA_DIR "$PROJECT_DIR/data"
   set_env_value .env VPNGATE_RUNTIME_MODE "$MODE"
+  if [[ -z "$DASHBOARD_PASSWORD" ]]; then
+    DASHBOARD_PASSWORD="$(random_secret)"
+  fi
+  set_env_value .env VPNGATE_DASHBOARD_PASSWORD "$DASHBOARD_PASSWORD"
+  set_env_value .env VPNGATE_DASHBOARD_SESSION_SECRET "$(random_secret)"
   if [[ "$MODE" == "hy2-native" ]]; then
     if [[ -z "$AUTH_PASSWORD" ]]; then
       AUTH_PASSWORD="$(random_secret)"
@@ -282,22 +293,26 @@ start_services() {
 
 print_summary() {
   local host
-  host="$(hostname -I | awk '{print $1}')"
+  host="$(detect_public_host)"
   echo
   echo "Installed mode: $MODE"
   echo "Dashboard: http://${host}:8000"
+  echo "Dashboard password: $DASHBOARD_PASSWORD"
   if [[ "$MODE" == "hy2-native" ]]; then
     cd "$PROJECT_DIR"
     set -a
     # shellcheck disable=SC1091
     source .env
     set +a
-    PYTHONPATH="$PROJECT_DIR/backend" "$PROJECT_DIR/.venv/bin/python" - <<'PY'
+    VPNGATE_INSTALL_DASHBOARD_HOST="$host" PYTHONPATH="$PROJECT_DIR/backend" "$PROJECT_DIR/.venv/bin/python" - <<'PY'
+import os
+
 from app.config import settings
 from app.models import HysteriaConfigPayload
 from app.services.hysteria import build_client_config
 
 server_host = settings.hysteria_advertise_host or settings.hysteria_domain or "127.0.0.1"
+dashboard_host = os.getenv("VPNGATE_INSTALL_DASHBOARD_HOST", server_host)
 payload = HysteriaConfigPayload(
     listen_host=settings.hysteria_listen_host,
     listen_port=settings.hysteria_listen_port,
@@ -313,6 +328,17 @@ payload = HysteriaConfigPayload(
 )
 client = build_client_config(payload, server_host)
 print("Hysteria URI:", client.uri)
+print()
+print("===== Client Share Block =====")
+print("把下面这段直接发给客户端：")
+print()
+print(f"管理面板: http://{dashboard_host}:8000")
+print(f"Panel password: {settings.dashboard_password}")
+print(f"Server: {client.server}")
+print(f"SNI: {client.tls.get('sni')}")
+print(f"Insecure: {str(client.tls.get('insecure')).lower()}")
+print(f"URI: {client.uri}")
+print("===== End =====")
 PY
   fi
 }

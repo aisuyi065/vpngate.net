@@ -21,13 +21,15 @@ Use it when you want a practical operator workflow instead of a pile of shell fr
 No-TUN or LXC host:
 
 ```bash
-bash install.sh --mode hy2-native --port 8443
+bash install.sh --mode hy2-native --port 8443 --dashboard-password 你的面板密码
 ```
+
+If you omit `--dashboard-password`, the installer will generate one and print it at the end.
 
 Real domain + ACME certificate:
 
 ```bash
-bash install.sh --mode hy2-native --domain vpn.example.com --acme-email ops@example.com --port 443
+bash install.sh --mode hy2-native --domain vpn.example.com --acme-email ops@example.com --port 443 --dashboard-password 你的面板密码
 ```
 
 ### Why It Feels Better Than a Raw One-Liner
@@ -35,6 +37,8 @@ bash install.sh --mode hy2-native --domain vpn.example.com --acme-email ops@exam
 - one installer instead of multiple disconnected scripts
 - official `hysteria-server.service`, but with project-managed config and dashboard visibility
 - generated `hysteria2://...` client URI at install time
+- dashboard password support at install time, with password-only access and no username
+- dashboard password can be changed later inside the panel without rerunning the installer
 - compatibility defaults that match the familiar community `hy2.sh` flow:
   - `SNI=bing.com`
   - `masquerade=https://bing.com`
@@ -61,7 +65,7 @@ If your target host is an LXC VPS or any server without `/dev/net/tun`, use `hy2
 ### Self-signed Hysteria 2 install
 
 ```bash
-bash install.sh --mode hy2-native --port 8443
+bash install.sh --mode hy2-native --port 8443 --dashboard-password 你的面板密码
 ```
 
 What you get:
@@ -84,7 +88,7 @@ Default self-signed compatibility values intentionally match the referenced comm
 ### Domain + ACME install
 
 ```bash
-bash install.sh --mode hy2-native --domain vpn.example.com --acme-email ops@example.com --port 443
+bash install.sh --mode hy2-native --domain vpn.example.com --acme-email ops@example.com --port 443 --dashboard-password 你的面板密码
 ```
 
 Use this when you want a cleaner production setup with a real certificate.
@@ -115,7 +119,7 @@ journalctl --no-pager -e -u hysteria-server.service
 Open the dashboard:
 
 ```text
-http://SERVER_IP:8000
+http://PUBLIC_IP:8000
 ```
 
 ## Firewall Notes
@@ -172,6 +176,8 @@ Copy `.env.example` to `.env` and change only what you need.
 Most important Hysteria 2 variables:
 
 - `VPNGATE_RUNTIME_MODE=hy2-native`
+- `VPNGATE_DASHBOARD_PASSWORD`
+- `VPNGATE_DASHBOARD_SESSION_SECRET`
 - `HYSTERIA_LISTEN_PORT`
 - `HYSTERIA_TLS_MODE=self_signed|acme`
 - `HYSTERIA_DOMAIN`
