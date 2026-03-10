@@ -1,0 +1,15 @@
+Metadata-Version: 2.4
+Name: vpngate-controller-backend
+Version: 0.1.0
+Summary: Single-node VPNGate controller backend
+Requires-Python: >=3.12
+Requires-Dist: beautifulsoup4<5,>=4.12
+Requires-Dist: fastapi<1,>=0.116
+Requires-Dist: httpx<1,>=0.28
+Requires-Dist: pydantic<3,>=2.11
+Requires-Dist: python-dotenv<2,>=1.1
+Requires-Dist: uvicorn[standard]<1,>=0.35
+Provides-Extra: dev
+Requires-Dist: pytest<9,>=8.4; extra == "dev"
+Requires-Dist: pytest-asyncio<2,>=1.1; extra == "dev"
+Requires-Dist: pytest-cov<7,>=6.2; extra == "dev"

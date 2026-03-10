@@ -1,0 +1,11 @@
+beautifulsoup4<5,>=4.12
+fastapi<1,>=0.116
+httpx<1,>=0.28
+pydantic<3,>=2.11
+python-dotenv<2,>=1.1
+uvicorn[standard]<1,>=0.35
+
+[dev]
+pytest<9,>=8.4
+pytest-asyncio<2,>=1.1
+pytest-cov<7,>=6.2

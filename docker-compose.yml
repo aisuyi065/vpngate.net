@@ -1,0 +1,15 @@
+services:
+  vpngate-controller:
+    build: .
+    container_name: vpngate-controller
+    env_file:
+      - .env
+    privileged: true
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data

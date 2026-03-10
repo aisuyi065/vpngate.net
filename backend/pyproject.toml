@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vpngate-controller-backend"
+version = "0.1.0"
+description = "Single-node VPNGate controller backend"
+requires-python = ">=3.12"
+dependencies = [
+  "beautifulsoup4>=4.12,<5",
+  "fastapi>=0.116,<1",
+  "httpx>=0.28,<1",
+  "pydantic>=2.11,<3",
+  "python-dotenv>=1.1,<2",
+  "uvicorn[standard]>=0.35,<1"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4,<9",
+  "pytest-asyncio>=1.1,<2",
+  "pytest-cov>=6.2,<7"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["tests"]
