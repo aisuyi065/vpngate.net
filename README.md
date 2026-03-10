@@ -1,22 +1,107 @@
 # VPNGate Controller
 
-A single-node VPNGate controller that refreshes VPNGate server data, enriches server IP quality, auto-selects residential OpenVPN nodes, and exposes a web dashboard for manual and automatic connection control.
+VPNGate Controller is a single-node control plane for two different network roles:
 
-## Features
+- `openvpn` mode: refresh VPNGate nodes, score residential-looking exits, and manage a local OpenVPN session
+- `hy2-native` mode: install and manage a local Hysteria 2 server on hosts that do not have `/dev/net/tun`, such as many LXC VPS environments
 
-- Refreshes VPNGate nodes from the public CSV/API feed and the public site table.
-- Enriches each server IP with IP intelligence and classifies it as `residential`, `hosting`, or `unknown`.
-- Supports automatic OpenVPN selection using a country whitelist and a quality score.
-- Supports a `hy2-native` runtime mode for Hysteria 2 server management on LXC or other no-TUN hosts.
-- Exposes a FastAPI backend plus a Vue dashboard.
-- Supports Linux hosts and WSL, with a clear WSL-only traffic scope warning.
+The project ships a FastAPI backend, a Vue dashboard, and a one-shot installer.
+
+## What This Project Solves
+
+Use this project when you want one of these outcomes:
+
+- run a Hysteria 2 server on an LXC or other no-TUN host without touching the host default route
+- keep a simple dashboard for service status, client URI output, and logs
+- keep the older VPNGate/OpenVPN workflow available for hosts that do have TUN support
+
+## Runtime Modes
+
+| Mode | Best for | Depends on TUN | What it controls |
+| --- | --- | --- | --- |
+| `hy2-native` | LXC, no-TUN VPS, Hysteria 2 ingress | No | Only traffic that enters through the local Hysteria 2 service |
+| `openvpn` | Traditional Linux or WSL setups with VPNGate exits | Yes | The local OpenVPN session and its route scope |
+
+## Fastest Path
+
+If your target host is an LXC VPS or any server without `/dev/net/tun`, use `hy2-native`.
+
+### Self-signed Hysteria 2 install
+
+```bash
+bash install.sh --mode hy2-native --port 8443
+```
+
+What you get:
+
+- the controller dashboard on port `8000`
+- the official `hysteria-server.service`
+- generated Hysteria 2 server config at `/etc/hysteria/config.yaml`
+- a printed client URI in this format:
+
+```text
+hysteria2://PASSWORD@SERVER_IP:8443/?sni=bing.com&insecure=1#VPNGate-Hysteria2
+```
+
+Default self-signed compatibility values intentionally match the referenced community `hy2.sh` flow:
+
+- `SNI=bing.com`
+- `masquerade=https://bing.com`
+- `insecure=1`
+
+### Domain + ACME install
+
+```bash
+bash install.sh --mode hy2-native --domain vpn.example.com --acme-email ops@example.com --port 443
+```
+
+Use this when you want a cleaner production setup with a real certificate.
+
+### Legacy VPNGate / OpenVPN install
+
+```bash
+./scripts/install-debian.sh
+```
+
+Use this only on hosts with `/dev/net/tun`.
+
+## Post-Install Checks
+
+After install, verify both services:
+
+```bash
+systemctl status hysteria-server.service
+systemctl status vpngate-controller.service
+```
+
+Read recent Hysteria logs:
+
+```bash
+journalctl --no-pager -e -u hysteria-server.service
+```
+
+Open the dashboard:
+
+```text
+http://SERVER_IP:8000
+```
+
+## Firewall Notes
+
+Open these ports:
+
+- `8000/tcp` for the dashboard
+- your chosen Hysteria 2 port over `udp` such as `8443/udp` or `443/udp`
+
+If your cloud provider uses security groups, open the same ports there as well.
 
 ## Project Layout
 
-- `backend/`: FastAPI API, scheduler, storage, VPNGate ingestion, and OpenVPN connector.
-- `frontend/`: Vue 3 dashboard.
-- `scripts/`: local start and install scripts.
-- `systemd/`: Linux service unit.
+- `backend/` - FastAPI app, controller logic, storage, VPNGate ingestion, Hysteria manager
+- `frontend/` - Vue 3 dashboard
+- `scripts/` - helper scripts for local starts and legacy install paths
+- `systemd/` - controller service unit
+- `docs/` - plans and operator-facing documents
 
 ## Local Development
 
@@ -35,51 +120,24 @@ pytest backend/tests
 ```bash
 cd frontend
 npm install
-npm run dev
+npm test
+npm run build
 ```
 
-### Run the app
+### Run locally
 
 ```bash
 cp .env.example .env
 ./scripts/start-controller.sh
 ```
 
-Then open `http://localhost:8000` after building the frontend, or run the frontend dev server on `http://localhost:5173`.
+Then visit `http://localhost:8000`.
 
-## Deployment
+## Key Environment Variables
 
-### Debian VPS
+Copy `.env.example` to `.env` and change only what you need.
 
-```bash
-./scripts/install-debian.sh
-```
-
-### Hysteria 2 / LXC / no-TUN install
-
-```bash
-bash install.sh --mode hy2-native --port 8443
-```
-
-With a real domain and ACME:
-
-```bash
-bash install.sh --mode hy2-native --domain vpn.example.com --acme-email ops@example.com --port 443
-```
-
-### WSL Ubuntu
-
-```bash
-./scripts/install-wsl.sh
-```
-
-WSL mode manages WSL traffic only. It does not take over the full Windows host network stack.
-
-## Environment Variables
-
-Copy `.env.example` to `.env` and adjust as needed.
-
-Key Hysteria-related variables:
+Most important Hysteria 2 variables:
 
 - `VPNGATE_RUNTIME_MODE=hy2-native`
 - `HYSTERIA_LISTEN_PORT`
@@ -90,12 +148,14 @@ Key Hysteria-related variables:
 - `HYSTERIA_MASQUERADE_URL`
 - `HYSTERIA_ADVERTISE_HOST`
 
-Default self-signed mode follows the same client-facing defaults as the referenced community `hy2.sh`: `SNI=bing.com`, `masquerade=https://bing.com`, and client `insecure=1`.
+## Important Limits
 
-## Notes
+- `hy2-native` mode does not reroute host traffic. It only handles traffic proxied through the local Hysteria 2 server.
+- LXC hosts without `/dev/net/tun` should use `hy2-native`, not the VPNGate/OpenVPN path.
+- Automatic residential node selection still belongs to the `openvpn` path.
 
-- Automatic connection currently targets OpenVPN only.
-- The backend must run with sufficient privileges to let OpenVPN create a TUN device and modify routes.
-- `hy2-native` mode does not take over host routing. It only manages the local Hysteria 2 service and the traffic proxied through it.
-- On LXC hosts without `/dev/net/tun`, prefer `hy2-native`; the legacy VPNGate OpenVPN path is not expected to work there.
-- Docker deployment uses `network_mode: host` and `NET_ADMIN`; native deployment is still the recommended path for route control.
+## Deployment Doc You Can Forward
+
+If you want a Chinese deployment handoff that you can send directly to someone else, use:
+
+- `docs/HY2-NATIVE-DEPLOYMENT.zh-CN.md`
