@@ -23,7 +23,8 @@ Options:
   --acme-email EMAIL       Email used for ACME registration
   --port PORT              Hysteria UDP listen port (default: 8443)
   --auth-password VALUE    Explicit Hysteria password
-  --dashboard-password V   Password required to access http://SERVER_IP:8000
+  --panel-pass V           Password required to access http://SERVER_IP:8000
+  --dashboard-password V   Backward-compatible alias for --panel-pass
   --masquerade-url URL     Hysteria masquerade URL
   --advertise-host HOST    Host advertised in client URI
   --help                   Show this message
@@ -56,7 +57,7 @@ while [[ $# -gt 0 ]]; do
       AUTH_PASSWORD="$2"
       shift 2
       ;;
-    --dashboard-password)
+    --panel-pass|--dashboard-password)
       DASHBOARD_PASSWORD="$2"
       shift 2
       ;;

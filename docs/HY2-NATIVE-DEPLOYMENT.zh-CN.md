@@ -33,10 +33,10 @@
 适合先跑通、先能连。
 
 ```bash
-bash install.sh --mode hy2-native --port 8443 --dashboard-password 你的面板密码
+bash install.sh --mode hy2-native --port 8443 --panel-pass 你的面板密码
 ```
 
-如果你不传 `--dashboard-password`，脚本也会自动生成一个面板密码，并在安装结束时打印出来。
+如果你不传 `--panel-pass`，脚本也会自动生成一个面板密码，并在安装结束时打印出来。
 
 执行完成后会输出一行：
 
@@ -58,13 +58,13 @@ Dashboard password: 你设置的密码
 适合长期稳定使用。
 
 ```bash
-bash install.sh --mode hy2-native --domain 你的域名 --acme-email 你的邮箱 --port 443 --dashboard-password 你的面板密码
+bash install.sh --mode hy2-native --domain 你的域名 --acme-email 你的邮箱 --port 443 --panel-pass 你的面板密码
 ```
 
 示例：
 
 ```bash
-bash install.sh --mode hy2-native --domain vpn.example.com --acme-email ops@example.com --port 443 --dashboard-password panel-123456
+bash install.sh --mode hy2-native --domain vpn.example.com --acme-email ops@example.com --port 443 --panel-pass panel-123456
 ```
 
 ## 必须放行的端口
@@ -157,7 +157,7 @@ hysteria2://密码@你的服务器IP:8443/?sni=bing.com&insecure=1#VPNGate-Hyste
 ```text
 在服务器项目目录执行：
 
-bash install.sh --mode hy2-native --port 8443 --dashboard-password 你的面板密码
+bash install.sh --mode hy2-native --port 8443 --panel-pass 你的面板密码
 
 安装完成后会打印 Hysteria URI: hysteria2://...
 以及 Dashboard: http://外网IP:8000
