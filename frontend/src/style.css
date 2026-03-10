@@ -132,6 +132,10 @@ input {
   gap: 1rem;
 }
 
+.toolbar-panel--top {
+  padding: 0.9rem 1.2rem;
+}
+
 .toolbar-panel__group {
   display: flex;
   flex-wrap: wrap;
@@ -270,4 +274,3 @@ tbody tr.connected {
     width: 100%;
   }
 }
-

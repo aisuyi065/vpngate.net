@@ -141,6 +141,15 @@ class HysteriaClientConfig(BaseModel):
     uri: str
 
 
+class DashboardLoginPayload(BaseModel):
+    password: str
+
+
+class DashboardAuthStatus(BaseModel):
+    enabled: bool = False
+    authenticated: bool = True
+
+
 class ConnectionLogEntry(BaseModel):
     id: int | None = None
     created_at: str = Field(default_factory=utcnow_iso)

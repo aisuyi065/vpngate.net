@@ -90,3 +90,8 @@ export interface HysteriaClientConfig {
 export interface HysteriaLogResponse {
   items: string[];
 }
+
+export interface DashboardAuthStatus {
+  enabled: boolean;
+  authenticated: boolean;
+}
